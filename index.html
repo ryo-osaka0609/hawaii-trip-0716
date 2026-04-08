@@ -363,15 +363,33 @@ body{background:var(--beige);font-family:'DM Sans',sans-serif;color:var(--dark);
   </div>
 
   <script>
-  function loadTodo() {
-    try { return JSON.parse(localStorage.getItem('todo') || '{}'); } catch(e) { return {}; }
+  // Firebase todoSync（Firebase SDK読み込み後に動作）
+  let _todoRef = null;
+  let _todoCache = {};
+
+  function initTodoSync() {
+    if (!window.firebase || !firebase.apps.length) {
+      setTimeout(initTodoSync, 300);
+      return;
+    }
+    _todoRef = firebase.database().ref('todo');
+    _todoRef.on('value', snapshot => {
+      _todoCache = snapshot.val() || {};
+      document.querySelectorAll('[data-todo]').forEach(el => {
+        applyTodo(el, !!_todoCache[el.dataset.todo]);
+      });
+    });
   }
+  initTodoSync();
+
+  function loadTodo() { return _todoCache; }
   function saveTodo(obj) {
-    try { localStorage.setItem('todo', JSON.stringify(obj)); } catch(e) {}
+    _todoCache = obj;
+    if (_todoRef) _todoRef.set(obj);
   }
   function toggleTodo(el) {
     const key = el.dataset.todo;
-    const todo = loadTodo();
+    const todo = Object.assign({}, loadTodo());
     todo[key] = !todo[key];
     saveTodo(todo);
     applyTodo(el, todo[key]);
@@ -389,13 +407,6 @@ body{background:var(--beige);font-family:'DM Sans',sans-serif;color:var(--dark);
       text.style.cssText = '';
     }
   }
-  // ページ読み込み時に保存済み状態を復元
-  (function restoreTodo() {
-    const todo = loadTodo();
-    document.querySelectorAll('[data-todo]').forEach(el => {
-      if (todo[el.dataset.todo]) applyTodo(el, true);
-    });
-  })();
   </script>
 
   <div id="budget" class="section-title">予算概算（1名分）</div>
